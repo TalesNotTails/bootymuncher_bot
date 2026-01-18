@@ -1,0 +1,27 @@
+{
+  "name": "bootymuncher_bot",
+  "version": "1.0.0",
+  "description": "Discord bot for bootymunchers.inc",
+  "homepage": "https://github.com/TalesNotTails/bootymuncher_bot#readme",
+  "bugs": {
+    "url": "https://github.com/TalesNotTails/bootymuncher_bot/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TalesNotTails/bootymuncher_bot.git"
+  },
+  "license": "ISC",
+  "author": "Cyrus Sariaslani",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "discord.js": "^14.25.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "eslint": "^9.39.2"
+  }
+}
