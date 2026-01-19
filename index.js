@@ -1,7 +1,8 @@
 // Require the necessary discord.js classes
 const fs = require('node:fs');
 const path = require('node:path');
-const { Client, Collection, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
+const { Client, Collection, Events, GatewayIntentBits, MessageFlags, ActivityType } = require('discord.js');
+const { status } = require('minecraft-server-util');
 
 // Create a new client instance
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -51,9 +52,34 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 // When the client is ready, run this code (only once).
-client.once(Events.ClientReady, (readyClient) => {
+client.once(Events.ClientReady, async (readyClient) => {
 	console.log(`Ready! Logged in as ${readyClient.user.tag}`);
 });
 
 // Log in to Discord with your client's token
 client.login(process.env.DISCORD_TOKEN);
+
+// Rotate status every 10 seconds
+setInterval(async () => {
+  try {
+    const response = await status(process.env.MC_SERVER, 25565);
+    client.user.setPresence({
+      activities: [{ 
+        name: 'mc_status',
+        type: 4,
+        state: '✅ Minecraft is online!'
+      }],
+      status: 'online'
+    });
+  }
+  catch (error) {
+    client.user.setPresence({
+      activities: [{
+        name: 'mc_status',
+        type: 4,
+        state: '❌ Minecraft is offline!'
+      }],
+      status: 'online'
+    });
+  }
+}, 60000); // 10000ms = 60 seconds
