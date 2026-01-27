@@ -7,7 +7,7 @@ module.exports = {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     
     try {
-      const response = await status(process.env.MC_SERVER, 25565);
+      const response = await status(process.env.MC_HOSTNAME, 25565);
       await interaction.editReply({
         content: `✅ Server is online!\n` +
                  `Players: ${response.players.online}/${response.players.max}\n` +

@@ -25,7 +25,7 @@ for (const file of commandFiles) {
 // Listen for interactions
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
-	console.log(interaction);
+	// console.log(interaction);
   const command = interaction.client.commands.get(interaction.commandName);
 
 	if (!command) {
@@ -62,7 +62,7 @@ client.login(process.env.DISCORD_TOKEN);
 // Rotate status every 10 seconds
 setInterval(async () => {
   try {
-    const response = await status(process.env.MC_SERVER, 25565);
+    const response = await status(process.env.MC_HOSTNAME, 25565);
     client.user.setPresence({
       activities: [{ 
         name: 'mc_status',
