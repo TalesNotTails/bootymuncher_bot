@@ -14,4 +14,4 @@ RUN npm ci --only=production
 COPY . .
 
 # Start the app
-CMD ["node", "index.js"]
+CMD ["/bin/sh", "-c", "node deploy-commands.js && node index.js"]
