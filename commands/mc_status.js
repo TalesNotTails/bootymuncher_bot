@@ -13,10 +13,10 @@ module.exports = {
                  `Players: ${response.players.online}/${response.players.max}\n` +
                  `Version: ${response.version.name}`,
       });
-    } 
+    }
     catch (error) {
       console.log(error);
       await interaction.editReply('❌ Server is offline or unreachable');
     }
-  }
-}
+  },
+};
