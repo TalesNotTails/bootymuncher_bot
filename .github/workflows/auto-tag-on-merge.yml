@@ -1,0 +1,126 @@
+name: Auto Tag on PR Merge
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main  # Change to your default branch if different (e.g., master)
+
+jobs:
+  tag:
+    # Only run when the PR is actually merged (not just closed/abandoned)
+    if: github.event.pull_request.merged == true
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write  # Required to create tags
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history needed to find latest tag
+
+      - name: Determine bump type from PR labels
+        id: bump
+        env:
+          LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          echo "PR labels: $LABELS"
+
+          if echo "$LABELS" | grep -qi '"major"'; then
+            echo "type=major" >> "$GITHUB_OUTPUT"
+          elif echo "$LABELS" | grep -qi '"minor"'; then
+            echo "type=minor" >> "$GITHUB_OUTPUT"
+          elif echo "$LABELS" | grep -qi '"patch"'; then
+            echo "type=patch" >> "$GITHUB_OUTPUT"
+          else
+            echo "No version label (major/minor/patch) found on this PR. Skipping tag."
+            echo "type=none" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Calculate next version
+        if: steps.bump.outputs.type != 'none'
+        id: version
+        run: |
+          # Get the latest semver tag, default to v0.0.0 if none exists
+          LATEST=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' \
+            | sort -V \
+            | tail -n 1)
+
+          if [ -z "$LATEST" ]; then
+            LATEST="v0.0.0"
+            echo "No existing tags found. Starting from $LATEST."
+          else
+            echo "Latest tag: $LATEST"
+          fi
+
+          # Strip the leading 'v'
+          VERSION="${LATEST#v}"
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          PATCH=$(echo "$VERSION" | cut -d. -f3)
+
+          BUMP_TYPE="${{ steps.bump.outputs.type }}"
+
+          case "$BUMP_TYPE" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "New tag: $NEW_TAG"
+          echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        if: steps.bump.outputs.type != 'none'
+        env:
+          NEW_TAG: ${{ steps.version.outputs.tag }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Tag the merge commit (HEAD of the base branch after merge)
+          MERGE_SHA="${{ github.event.pull_request.merge_commit_sha }}"
+
+          git tag \
+            -a "$NEW_TAG" \
+            "$MERGE_SHA" \
+            -m "Release $NEW_TAG — PR #${PR_NUMBER}: ${PR_TITLE}"
+
+          git push origin "$NEW_TAG"
+
+          echo "✅ Tagged $MERGE_SHA as $NEW_TAG"
+
+      - name: Summary
+        if: steps.bump.outputs.type != 'none'
+        run: |
+          echo "### 🏷️ Tagged release ${{ steps.version.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tag | \`${{ steps.version.outputs.tag }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Bump type | \`${{ steps.bump.outputs.type }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Merge commit | \`${{ github.event.pull_request.merge_commit_sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| PR | #${{ github.event.pull_request.number }} — ${{ github.event.pull_request.title }} |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Skip notice
+        if: steps.bump.outputs.type == 'none'
+        run: |
+          echo "### ⏭️ No version tag created" >> "$GITHUB_STEP_SUMMARY"
+          echo "Add a \`major\`, \`minor\`, or \`patch\` label to the PR to trigger auto-tagging." >> "$GITHUB_STEP_SUMMARY"
