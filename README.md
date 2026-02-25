@@ -15,3 +15,4 @@ Version: 1.21.11
 
 [![Auto Tagging](https://github.com/TalesNotTails/bootymuncher_bot/actions/workflows/auto-tag-on-merge.yml/badge.svg)](https://github.com/TalesNotTails/bootymuncher_bot/actions/workflows/auto-tag-on-merge.yml)
 [![JS Lint](https://github.com/TalesNotTails/bootymuncher_bot/actions/workflows/lint.yml/badge.svg)](https://github.com/TalesNotTails/bootymuncher_bot/actions/workflows/lint.yml)
+[![Docker Build CI](https://github.com/TalesNotTails/bootymuncher_bot/actions/workflows/docker-build-push.yml/badge.svg)](https://github.com/TalesNotTails/bootymuncher_bot/actions/workflows/docker-build-push.yml)
