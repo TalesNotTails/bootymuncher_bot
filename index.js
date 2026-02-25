@@ -76,16 +76,16 @@ setInterval(async () => {
     });
   }
   catch (error) {
-    console.log(error)
+    console.log(error);
     client.user.setPresence({
       activities: [{
         name: 'mc_status',
         type: 4,
-        state: '❌ Minecraft is offline!'
+        state: '❌ Minecraft is offline!',
       }],
-      status: 'online'
+      status: 'online',
     });
   }
-}, 
+},
 // 10000ms = 60 seconds
-60000); 
+60000);
