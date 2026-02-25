@@ -17,6 +17,6 @@ module.exports = {
     catch (error) {
       console.log(error);
       await interaction.editReply('❌ Server is offline or unreachable');
-    },
+    }
   }
 }
