@@ -44,19 +44,19 @@ client.on(Events.InteractionCreate, async (interaction) => {
         content: 'There was an error while executing this command!',
         flags: MessageFlags.Ephemeral,
       });
-    } 
+    }
     else {
-			await interaction.reply({
-				content: 'There was an error while executing this command!',
-				flags: MessageFlags.Ephemeral,
-			});
-		}
-	}
+      await interaction.reply({
+        content: 'There was an error while executing this command!',
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+  }
 });
 
 // When the client is ready, run this code (only once).
 client.once(Events.ClientReady, async (readyClient) => {
-	console.log(`Ready! Logged in as ${readyClient.user.tag}`);
+  console.log(`Ready! Logged in as ${readyClient.user.tag}`);
 });
 
 // Log in to Discord with your client's token
@@ -65,17 +65,18 @@ client.login(process.env.DISCORD_TOKEN);
 // Rotate status every 10 seconds
 setInterval(async () => {
   try {
-    const response = await status(process.env.MC_HOSTNAME, 25565);
+    const response = await status(process.env.MC_HOSTNAME, 25565); // eslint-disable-line no-unused-vars
     client.user.setPresence({
-      activities: [{ 
+      activities: [{
         name: 'mc_status',
         type: 4,
-        state: '✅ Minecraft is online!'
+        state: '✅ Minecraft is online!',
       }],
-      status: 'online'
+      status: 'online',
     });
   }
   catch (error) {
+    console.log(error)
     client.user.setPresence({
       activities: [{
         name: 'mc_status',
@@ -85,4 +86,6 @@ setInterval(async () => {
       status: 'online'
     });
   }
-}, 60000); // 10000ms = 60 seconds
+}, 
+// 10000ms = 60 seconds
+60000); 
