@@ -1,0 +1,21 @@
+{
+  "name": "Node.js + Neovim",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": []
+    }
+  },
+  "remoteUser": "node",
+  "mounts": [
+    // Mount your local Neovim config into the container
+    "source=${localEnv:HOME}/.config/nvim,target=/home/node/.config/nvim,type=bind,consistency=cached"
+  ],
+  "postCreateCommand": "npm install",
+  "forwardPorts": [3000],
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  }
+}
