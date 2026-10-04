@@ -3,12 +3,6 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
-  "remoteUser": "csariaslani",
-  "mounts": [
-    "source=${localEnv:HOME}/.config/nvim,target=/tmp/nvim,type=bind,consistency=cached",
-    "source=${localEnv:HOME}/.zshrc,target=/tmp/.zshrc,type=bind,consistency=cached",
-    "source=${localEnv:HOME}/.p10k.zsh,target=/tmp/.p10k.zsh,type=bind,consistency=cached"
-  ], 
   "features": {
     "ghcr.io/devcontainers/features/common-utils:2.5.6": {
       "installZsh": true,
@@ -16,15 +10,11 @@
       "installOhMyZshConfig": true,
       "configureZshAsDefaultShell": true,
       "upgradePackages": true,
-      "username": "csariaslani",
       "userUid": "3000",
       "userGid": "3000"
     }
   },
   "postCreateCommand": {
-    "npm": "npm install",
-    "nvim": "cp -r /tmp/nvim ~/.config/",
-    "zsh": "cp /tmp/.zshrc ~/.zshrc",
-    "p10k": "git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ~/.oh-my-zsh/custom/themes/powerlevel10k && cp /tmp/.p10k.zsh ~/.p10k.zsh"
+    "npm": "npm install"
   }
 }
