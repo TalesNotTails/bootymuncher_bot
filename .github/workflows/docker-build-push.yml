@@ -45,6 +45,9 @@ jobs:
         uses: docker/setup-qemu-action@v3
         with:
           platforms: linux/amd64,linux/arm64
+          # The post-job binfmt image cache fails on workflow_run triggers
+          # (read-only cache token) and when jobs run concurrently.
+          cache-image: false
 
       # Buildx is the Docker CLI plugin that enables multi-platform builds
       - name: Set up Docker Buildx
