@@ -3,7 +3,8 @@ name: Lint
 on:
   pull_request:
     branches:
-      - main  # Change to your default branch if different (e.g., master)
+      - main
+      - dev
 
 jobs:
   lint:
