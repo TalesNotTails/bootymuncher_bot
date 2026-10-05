@@ -5,7 +5,8 @@ on:
     types:
       - closed
     branches:
-      - main  # Change to your default branch if different (e.g., master)
+      - main
+      - dev
 
 jobs:
   tag:
@@ -13,6 +14,9 @@ jobs:
     if: github.event.pull_request.merged == true
 
     runs-on: ubuntu-latest
+
+    # main merges use the 'production' GitHub environment, dev merges use 'development'
+    environment: ${{ github.base_ref == 'dev' && 'development' || 'production' }}
 
     permissions:
       contents: write  # Required to create tags
@@ -45,20 +49,27 @@ jobs:
         if: steps.bump.outputs.type != 'none'
         id: version
         run: |
-          # Get the latest semver tag, default to v0.0.0 if none exists
-          LATEST=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' \
+          # dev merges get dev-prefixed tags (dev-vX.Y.Z) so versions track independently
+          if [ "${{ github.base_ref }}" = "dev" ]; then
+            PREFIX="dev-v"
+          else
+            PREFIX="v"
+          fi
+
+          # Get the latest semver tag with this prefix, default to 0.0.0 if none exists
+          LATEST=$(git tag --list "${PREFIX}[0-9]*.[0-9]*.[0-9]*" \
             | sort -V \
             | tail -n 1)
 
           if [ -z "$LATEST" ]; then
-            LATEST="v0.0.0"
+            LATEST="${PREFIX}0.0.0"
             echo "No existing tags found. Starting from $LATEST."
           else
             echo "Latest tag: $LATEST"
           fi
 
-          # Strip the leading 'v'
-          VERSION="${LATEST#v}"
+          # Strip the leading prefix
+          VERSION="${LATEST#${PREFIX}}"
           MAJOR=$(echo "$VERSION" | cut -d. -f1)
           MINOR=$(echo "$VERSION" | cut -d. -f2)
           PATCH=$(echo "$VERSION" | cut -d. -f3)
@@ -80,7 +91,7 @@ jobs:
               ;;
           esac
 
-          NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+          NEW_TAG="${PREFIX}${MAJOR}.${MINOR}.${PATCH}"
           echo "New tag: $NEW_TAG"
           echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
 

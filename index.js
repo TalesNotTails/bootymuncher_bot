@@ -3,9 +3,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
 const { status } = require('minecraft-server-util');
+const db = require('./db');
 
 // Create a new client instance
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 client.commands = new Collection();
 
 // Import slash commands
@@ -54,13 +55,37 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
+// Award XP for chatting (with a 60s cooldown per user)
+const XP_COOLDOWN_MS = 60000;
+client.on(Events.MessageCreate, async (message) => {
+  if (message.author.bot || !message.guild) return;
+  try {
+    const lastXpAt = await db.getLastXpAt(message.author.id, message.guild.id);
+    if (lastXpAt && Date.now() - new Date(lastXpAt).getTime() < XP_COOLDOWN_MS) return;
+
+    const amount = Math.floor(Math.random() * 11) + 15;
+    const result = await db.addXp(message.author.id, message.guild.id, amount);
+    if (result.leveledUp) {
+      await message.channel.send(`${message.author} leveled up to level ${result.level}!`);
+    }
+  }
+  catch (error) {
+    console.error(error);
+  }
+});
+
 // When the client is ready, run this code (only once).
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`Ready! Logged in as ${readyClient.user.tag}`);
 });
 
 // Log in to Discord with your client's token
-client.login(process.env.DISCORD_TOKEN);
+db.init()
+  .then(() => client.login(process.env.DISCORD_TOKEN))
+  .catch((error) => {
+    console.error('Failed to initialize database:', error);
+    process.exit(1);
+  });
 
 // Rotate status every 10 seconds
 setInterval(async () => {
