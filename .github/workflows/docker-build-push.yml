@@ -8,9 +8,51 @@ on:
       - completed
 
 jobs:
+  detect:
+    name: Determine environment from latest tag
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.detect.outputs.environment }}
+      tag: ${{ steps.detect.outputs.tag }}
+      floating_tag: ${{ steps.detect.outputs.floating_tag }}
+      buildcache: ${{ steps.detect.outputs.buildcache }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get latest tag
+        id: detect
+        run: |
+          git fetch --tags
+          # Latest stable tag and latest dev tag
+          STABLE_TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n 1)
+          DEV_TAG=$(git tag --list 'dev-v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n 1)
+
+          # Pick whichever scheme was tagged most recently
+          STABLE_DATE=$(git log -1 --format=%ct "$STABLE_TAG" 2>/dev/null || echo 0)
+          DEV_DATE=$(git log -1 --format=%ct "$DEV_TAG" 2>/dev/null || echo 0)
+
+          if [ "$DEV_DATE" -gt "$STABLE_DATE" ]; then
+            echo "tag=$DEV_TAG" >> "$GITHUB_OUTPUT"
+            echo "environment=development" >> "$GITHUB_OUTPUT"
+            echo "floating_tag=dev" >> "$GITHUB_OUTPUT"
+            echo "buildcache=buildcache-dev" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=$STABLE_TAG" >> "$GITHUB_OUTPUT"
+            echo "environment=production" >> "$GITHUB_OUTPUT"
+            echo "floating_tag=latest" >> "$GITHUB_OUTPUT"
+            echo "buildcache=buildcache" >> "$GITHUB_OUTPUT"
+          fi
+
   build-and-push:
     name: Build & Push to Docker Hub
+    needs: detect
     runs-on: ubuntu-latest
+
+    # production secrets/vars for main tags, development for dev-v* tags
+    environment: ${{ needs.detect.outputs.environment }}
 
     permissions:
       contents: read
@@ -22,13 +64,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Get latest tag
-        id: tag
-        run: |
-          git fetch --tags
-          LATEST_TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n 1)
-          echo "tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
 
       # QEMU emulates non-native architectures (required for arm64 on amd64 runners)
       - name: Set up QEMU
@@ -55,8 +90,8 @@ jobs:
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}
           tags: |
-            type=raw,value=${{ steps.tag.outputs.tag }}
-            type=raw,value=latest
+            type=raw,value=${{ needs.detect.outputs.tag }}
+            type=raw,value=${{ needs.detect.outputs.floating_tag }}
 
       - name: Build and push multi-arch image
         uses: docker/build-push-action@v6
@@ -69,5 +104,5 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           # Use registry-based cache (Docker Hub) since workflow_run triggers
           # get a read-only GitHub Actions cache token, so type=gha writes fail
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:buildcache
-          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:buildcache,mode=max
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ needs.detect.outputs.buildcache }}
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ needs.detect.outputs.buildcache }},mode=max
