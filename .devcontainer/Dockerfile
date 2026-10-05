@@ -12,7 +12,7 @@ RUN curl -fsSL -o /tmp/nvim.tar.gz https://github.com/neovim/neovim/releases/dow
     && rm /tmp/nvim.tar.gz
 
 # Optional: Install a Node LSP globally
-RUN npm install -g typescript typescript-language-server eslint_d prettier vscode-langservers-extracted
+RUN npm install -g typescript typescript-language-server eslint_d prettier vscode-langservers-extracted opencode-ai
 
 # Neovim config with ESLint/TypeScript LSP
 COPY nvim /root/.config/nvim

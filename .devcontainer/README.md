@@ -8,7 +8,7 @@ This folder defines a [devcontainer](https://containers.dev) environment for dev
 - **Feature:** `common-utils` — zsh, Oh My Zsh, and sensible shell defaults (user UID/GID 3000)
 - **CLI tools:** `git`, `curl`, `ripgrep`, `fd-find`, `unzip`, `build-essential`
 - **Neovim 0.11.5:** installed from the official GitHub release tarball into `/opt/nvim-linux-arm64` (the apt package ships an older 0.10.x)
-- **Node globals:** `typescript`, `typescript-language-server`, `eslint_d`, `prettier`, `vscode-langservers-extracted`
+- **Node globals:** `typescript`, `typescript-language-server`, `eslint_d`, `prettier`, `vscode-langservers-extracted`, `opencode-ai` (the `opencode` CLI)
 - **Shell default:** zsh (configured as the default shell by `common-utils`)
 
 On first creation (`postCreateCommand`), `npm install` runs automatically.
