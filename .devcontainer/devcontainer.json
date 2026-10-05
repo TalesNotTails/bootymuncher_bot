@@ -16,5 +16,9 @@
   },
   "postCreateCommand": {
     "npm": "npm install"
-  }
+  },
+  "mounts": [
+    "source=${localEnv:HOME}/.config/opencode,target=/root/.config/opencode,type=bind",
+    "source=opencode-data,target=/root/.local/share/opencode,type=volume"
+  ]
 }
