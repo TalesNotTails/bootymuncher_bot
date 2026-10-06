@@ -16,4 +16,5 @@ RUN npm install -g typescript typescript-language-server eslint_d prettier vscod
 
 # Neovim config with ESLint/TypeScript LSP
 COPY nvim /root/.config/nvim
+ENV EDITOR="nvim ."
 RUN nvim --headless "+Lazy! sync" +qa || true

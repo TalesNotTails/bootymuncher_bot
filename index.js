@@ -57,13 +57,36 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 // Award XP for chatting (with a 60s cooldown per user)
 const XP_COOLDOWN_MS = 60000;
+
+// Ordering coordination: the top-user notification can arrive before the
+// level-up message is sent, so hold it back while addXp is in flight.
+const pendingXp = new Set();
+const queuedTopUser = new Map();
+
+async function announceTopUser(payload) {
+  try {
+    const guild = await client.guilds.fetch(payload.guild_id);
+    const channel = guild.systemChannel;
+    if (!channel) {
+      console.warn(`Guild ${guild.id} has no system channel; skipping top-user message.`);
+      return;
+    }
+    await channel.send(`<@${payload.user_id}> passed <@${payload.prev_user_id}> and is now the highest level at level ${payload.level}!`);
+  }
+  catch (error) {
+    console.error('Failed to announce top user:', error);
+  }
+}
+
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.guild) return;
+  const key = `${message.guild.id}:${message.author.id}`;
   try {
     const lastXpAt = await db.getLastXpAt(message.author.id, message.guild.id);
     if (lastXpAt && Date.now() - new Date(lastXpAt).getTime() < XP_COOLDOWN_MS) return;
 
     const amount = Math.floor(Math.random() * 11) + 15;
+    pendingXp.add(key);
     const result = await db.addXp(message.author.id, message.guild.id, amount);
     if (result.leveledUp) {
       await message.channel.send(`${message.author} leveled up to level ${result.level}!`);
@@ -72,11 +95,28 @@ client.on(Events.MessageCreate, async (message) => {
   catch (error) {
     console.error(error);
   }
+  finally {
+    pendingXp.delete(key);
+    const queued = queuedTopUser.get(key);
+    if (queued) {
+      queuedTopUser.delete(key);
+      await announceTopUser(queued);
+    }
+  }
 });
 
 // When the client is ready, run this code (only once).
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`Ready! Logged in as ${readyClient.user.tag}`);
+  db.listenForTopUser((payload) => {
+    const key = `${payload.guild_id}:${payload.user_id}`;
+    if (pendingXp.has(key)) {
+      queuedTopUser.set(key, payload);
+    }
+    else {
+      announceTopUser(payload);
+    }
+  });
 });
 
 // Log in to Discord with your client's token
