@@ -1,4 +1,4 @@
-const { Pool } = require('pg');
+const { Pool, Client } = require('pg');
 
 // Railway exposes DATABASE_URL (and PG* vars) when a PostgreSQL service is linked;
 // locally we fall back to POSTGRES_* / PG* vars (docker-compose sets these).
@@ -27,6 +27,46 @@ async function init() {
       last_xp_at TIMESTAMPTZ,
       PRIMARY KEY (user_id, guild_id)
     );
+    
+    CREATE OR REPLACE FUNCTION notify_new_top_user()
+    RETURNS TRIGGER AS $$
+    DECLARE 
+      payload JSON;
+      prev_top_user_id TEXT;
+      prev_top_user_level INTEGER;
+    BEGIN
+
+      SELECT user_id, level INTO prev_top_user_id, prev_top_user_level
+      FROM user_levels
+      WHERE guild_id = NEW.guild_id AND user_id <> NEW.user_id 
+      ORDER BY level DESC
+      LIMIT 1;
+
+      payload = json_build_object(
+        'guild_id', NEW.guild_id,
+        'user_id', NEW.user_id,
+        'level', NEW.level,
+        'old_level', OLD.level,
+        'prev_user_id', prev_top_user_id
+      );
+
+      IF NEW.level > OLD.level
+        AND prev_top_user_level IS NOT NULL
+        AND prev_top_user_level > 0
+        AND NEW.level > prev_top_user_level
+        AND OLD.level <= prev_top_user_level THEN
+       PERFORM pg_notify('new_top_user', payload::text);
+      END IF;
+
+      RETURN NEW;
+
+    END;
+    $$ LANGUAGE plpgsql;
+
+    CREATE OR REPLACE TRIGGER new_top_user_trigger
+    AFTER UPDATE OF level ON user_levels
+    FOR EACH ROW
+    EXECUTE FUNCTION notify_new_top_user();
   `);
 }
 
@@ -79,4 +119,40 @@ async function getLastXpAt(userId, guildId) {
   return result.rows[0] ? result.rows[0].last_xp_at : null;
 }
 
-module.exports = { pool, init, addXp, getUser, getLeaderboard, getLastXpAt, xpForLevel };
+// Dedicated connection (not from the pool) that LISTENs for top-user changes.
+function listenForTopUser(onTopUser) {
+  const client = new Client(pool.options);
+  let retrying = false;
+
+  const retry = () => {
+    if (retrying) return;
+    retrying = true;
+    client.removeAllListeners();
+    client.on('error', () => undefined);
+    client.end().catch(() => undefined);
+    setTimeout(() => listenForTopUser(onTopUser), 5000);
+  };
+
+  client.on('error', (err) => {
+    console.error('Listener connection error:', err.message);
+    retry();
+  });
+  client.on('end', retry);
+  client.on('notification', (msg) => {
+    try {
+      onTopUser(JSON.parse(msg.payload));
+    }
+    catch (error) {
+      console.error('Bad notification payload:', error);
+    }
+  });
+
+  client.connect()
+    .then(() => client.query('LISTEN new_top_user'))
+    .catch((err) => {
+      console.error('Failed to start listener:', err.message);
+      retry();
+    });
+}
+
+module.exports = { pool, init, listenForTopUser, addXp, getUser, getLeaderboard, getLastXpAt, xpForLevel };
