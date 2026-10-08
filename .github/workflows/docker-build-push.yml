@@ -60,9 +60,12 @@ jobs:
       actions: write
 
     steps:
+      # workflow_run triggers default to the main branch, so check out the
+      # detected tag explicitly (dev-v* tags point at dev commits).
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: refs/tags/${{ needs.detect.outputs.tag }}
           fetch-depth: 0
 
       # QEMU emulates non-native architectures (required for arm64 on amd64 runners)
