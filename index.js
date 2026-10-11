@@ -86,7 +86,8 @@ client.on(Events.MessageCreate, async (message) => {
     pendingXp.add(key);
     const result = await db.addXp(message.author.id, message.guild.id, amount, XP_COOLDOWN_MS);
     if (result && result.leveledUp) {
-      await message.channel.send(`${message.author} leveled up to level ${result.level}!`);
+      console.log(`${message.author} leveled up to level ${result.level}!`);
+      // await message.channel.send(`${message.author} leveled up to level ${result.level}!`);
     }
   }
   catch (error) {
