@@ -108,7 +108,9 @@ async function addXp(userId, guildId, amount, cooldownMs = 0) {
     return { xp: newXp, level: newLevel, leveledUp: newLevel > row.level };
   }
   catch (error) {
-    await client.query('ROLLBACK').catch(() => {});
+    await client.query('ROLLBACK').catch((rollbackError) => {
+      console.error('Rollback failed:', rollbackError);
+    });
     throw error;
   }
   finally {
