@@ -74,25 +74,48 @@ function xpForLevel(level) {
   return 100 * level * level;
 }
 
-async function addXp(userId, guildId, amount) {
-  const result = await pool.query(
-    `INSERT INTO user_levels (user_id, guild_id, xp, level, last_xp_at)
-     VALUES ($1, $2, $3, 0, NOW())
-     ON CONFLICT (user_id, guild_id)
-     DO UPDATE SET xp = user_levels.xp + $3, last_xp_at = NOW()
-     RETURNING xp, level, last_xp_at`,
-    [userId, guildId, amount],
-  );
-  const row = result.rows[0];
-  const newLevel = Math.floor(Math.sqrt(row.xp / 100));
-  if (newLevel !== row.level) {
-    await pool.query(
-      'UPDATE user_levels SET level = $3 WHERE user_id = $1 AND guild_id = $2',
-      [userId, guildId, newLevel],
+// Atomically awards XP under a row lock so concurrent messages can't race.
+// Returns null if the user is still on cooldown (when cooldownMs is given).
+async function addXp(userId, guildId, amount, cooldownMs = 0) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `INSERT INTO user_levels (user_id, guild_id, xp, level)
+       VALUES ($1, $2, 0, 0) ON CONFLICT (user_id, guild_id) DO NOTHING`,
+      [userId, guildId],
     );
-    return { xp: row.xp, level: newLevel, leveledUp: true };
+    const { rows } = await client.query(
+      `SELECT xp, level, last_xp_at FROM user_levels
+       WHERE user_id = $1 AND guild_id = $2 FOR UPDATE`,
+      [userId, guildId],
+    );
+    const row = rows[0];
+    if (cooldownMs > 0 && row.last_xp_at
+      && Date.now() - new Date(row.last_xp_at).getTime() < cooldownMs) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+    const newXp = row.xp + amount;
+    const computed = Math.floor(Math.sqrt(newXp / 100));
+    const newLevel = Math.max(row.level, computed);
+    await client.query(
+      `UPDATE user_levels SET xp = $3, level = $4, last_xp_at = NOW()
+       WHERE user_id = $1 AND guild_id = $2`,
+      [userId, guildId, newXp, newLevel],
+    );
+    await client.query('COMMIT');
+    return { xp: newXp, level: newLevel, leveledUp: newLevel > row.level };
   }
-  return { xp: row.xp, level: row.level, leveledUp: false };
+  catch (error) {
+    await client.query('ROLLBACK').catch((rollbackError) => {
+      console.error('Rollback failed:', rollbackError);
+    });
+    throw error;
+  }
+  finally {
+    client.release();
+  }
 }
 
 async function getUser(userId, guildId) {
