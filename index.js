@@ -82,13 +82,10 @@ client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.guild) return;
   const key = `${message.guild.id}:${message.author.id}`;
   try {
-    const lastXpAt = await db.getLastXpAt(message.author.id, message.guild.id);
-    if (lastXpAt && Date.now() - new Date(lastXpAt).getTime() < XP_COOLDOWN_MS) return;
-
     const amount = Math.floor(Math.random() * 11) + 15;
     pendingXp.add(key);
-    const result = await db.addXp(message.author.id, message.guild.id, amount);
-    if (result.leveledUp) {
+    const result = await db.addXp(message.author.id, message.guild.id, amount, XP_COOLDOWN_MS);
+    if (result && result.leveledUp) {
       await message.channel.send(`${message.author} leveled up to level ${result.level}!`);
     }
   }
