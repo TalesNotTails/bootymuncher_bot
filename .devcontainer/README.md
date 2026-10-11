@@ -23,6 +23,8 @@ On first creation (`postCreateCommand`), `npm install` runs automatically.
 
 Defined in `nvim/init.lua`, using [lazy.nvim](https://github.com/folke/lazy.nvim):
 
+- **kanagawa.nvim** — color scheme, loaded first and applied with `colorscheme kanagawa` (`termguicolors` is enabled)
+  - Uses the `wave` theme; change `theme` in `nvim/init.lua` to `dragon` or `lotus` for the other variants
 - **gitsigns.nvim** — git change markers in the sign column (`+` added, `~` changed, `_` deleted)
   - `<Space>hp` — preview the hunk at the cursor
 - **nvim-lspconfig (eslint)** — TypeScript/JavaScript linting with flat config
