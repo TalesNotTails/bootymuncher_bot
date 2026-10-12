@@ -22,6 +22,6 @@ module.exports = {
       }
       return `${i + 1}. ${name} — level ${row.level}, ${row.xp} XP`;
     }));
-    await interaction.reply({ content: lines.join('\n'), MessageFlags: Ephemeral });
+    await interaction.reply({ content: lines.join('\n'), flags: MessageFlags.Ephemeral });
   },
 };
