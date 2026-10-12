@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const db = require('../db');
 
 module.exports = {
@@ -22,6 +22,6 @@ module.exports = {
       }
       return `${i + 1}. ${name} — level ${row.level}, ${row.xp} XP`;
     }));
-    await interaction.reply(lines.join('\n'));
+    await interaction.reply({ content: lines.join('\n'), flags: MessageFlags.Ephemeral });
   },
 };

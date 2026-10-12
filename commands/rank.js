@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const db = require('../db');
 
 module.exports = {
@@ -10,6 +10,6 @@ module.exports = {
     const target = interaction.options.getUser('user') || interaction.user;
     const { xp, level } = await db.getUser(target.id, interaction.guild.id);
     const nextLevelXp = db.xpForLevel(level + 1);
-    await interaction.reply(`${target.username} is level ${level} with ${xp} XP (${nextLevelXp} XP to next level).`);
+    await interaction.reply({ content: `${target.username} is level ${level} with ${xp} XP (${nextLevelXp} XP to next level).`, flags: MessageFlags.Ephemeral });
   },
 };
