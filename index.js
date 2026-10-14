@@ -6,7 +6,16 @@ const { status } = require('minecraft-server-util');
 const db = require('./db');
 
 // Create a new client instance
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.MessageContent,
+  ],
+});
+
 client.commands = new Collection();
 
 // Import slash commands
@@ -62,19 +71,40 @@ const XP_COOLDOWN_MS = 60000;
 // level-up message is sent, so hold it back while addXp is in flight.
 const pendingXp = new Set();
 const queuedTopUser = new Map();
+const roleID = process.env.LEADER_ROLE_ID;
 
 async function announceTopUser(payload) {
   try {
     const guild = await client.guilds.fetch(payload.guild_id);
     const channel = guild.systemChannel;
-    if (!channel) {
-      console.warn(`Guild ${guild.id} has no system channel; skipping top-user message.`);
-      return;
+    // Get leaderRole and clear existing users
+    if (roleID) {
+      try {
+        const leaderRole = await guild.roles.fetch(roleID);
+        if (!leaderRole) {throw new Error(`Role: ${roleID} did not return a role`);}
+        await guild.members.fetch();
+        const newLeader = await guild.members.fetch(payload.user_id);
+        await Promise.all(
+          leaderRole.members
+            .filter(m => m.id !== payload.user_id)
+            .map(m => m.roles.remove(leaderRole)),
+        );
+        await newLeader.roles.add(leaderRole);
+      }
+      catch (error) {
+        console.error('Error assigning role', error);
+      }
+
+      if (!channel) {
+        console.warn(`Guild ${guild.id} has no system channel; skipping top-user message.`);
+        return;
+      }
+
+      await channel.send(`<@${payload.user_id}> passed <@${payload.prev_user_id}> to become the new yap leader at level ${payload.level}!`);
     }
-    await channel.send(`<@${payload.user_id}> passed <@${payload.prev_user_id}> and is now the highest level at level ${payload.level}!`);
   }
   catch (error) {
-    console.error('Failed to announce top user:', error);
+    console.error('Unable to send top user message', error);
   }
 }
 
