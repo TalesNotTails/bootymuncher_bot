@@ -1,7 +1,7 @@
 // Require the necessary discord.js classes
 const fs = require('node:fs');
 const path = require('node:path');
-const { Client, Collection, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
+const { Client, Collection, Events, GatewayIntentBits, MessageFlags, Partials } = require('discord.js');
 const { status } = require('minecraft-server-util');
 const db = require('./db');
 
@@ -11,8 +11,14 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.MessageContent,
+  ],
+  partials: [
+    Partials.Message,
+    Partials.Reaction,
+    Partials.Channel,
   ],
 });
 
@@ -32,6 +38,53 @@ for (const file of commandFiles) {
     console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
   }
 }
+
+// Listen for adding reactions
+client.on('messageReactionAdd', async (reaction, user) => {
+  if (user.bot) return;
+
+  if (reaction.partial) {
+    try {
+      await reaction.fetch();
+      await user.fetch();
+    }
+    catch (error) {
+      console.error('Error fetching resources from reaction', error);
+      return;
+    }
+  }
+
+  try {
+    const message = await reaction.message.fetch();
+
+    if (!message.guild) return;
+    if (message.author.id === user.id) return;
+
+    const xp_gainers = [
+      { guild_id: message.guild.id, user_id: message.author.id },
+      { guild_id: message.guild.id, user_id: user.id },
+    ];
+    const amount = Math.floor(Math.random() * 11) + 5;
+
+    for (const xp_user of xp_gainers) {
+      const key = `${xp_user.guild_id}:${xp_user.user_id}`;
+      try {
+        startPendingXp(key);
+        const result = await db.addXp(xp_user.user_id, xp_user.guild_id, amount, XP_COOLDOWN_MS);
+        if (result && result.leveledUp) {
+          console.log(`${xp_user.user_id} leveled up to level ${result.level}!`);
+        }
+      }
+      catch (error) {
+        console.error(error);
+      }
+      finally {
+        await finishPendingXp(key);
+      }
+    }
+  }
+  catch (error) {console.error('Error fetching message', error);}
+});
 
 // Listen for interactions
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -64,14 +117,53 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
+// Listen for messages
+client.on(Events.MessageCreate, async (message) => {
+  if (message.author.bot || !message.guild) return;
+  const key = `${message.guild.id}:${message.author.id}`;
+  try {
+    const amount = Math.floor(Math.random() * 11) + 15;
+    startPendingXp(key);
+    const result = await db.addXp(message.author.id, message.guild.id, amount, XP_COOLDOWN_MS);
+    if (result && result.leveledUp) {
+      console.log(`${message.author} leveled up to level ${result.level}!`);
+    }
+  }
+  catch (error) {
+    console.error(error);
+  }
+  finally {
+    await finishPendingXp(key);
+  }
+});
+
 // Award XP for chatting (with a 60s cooldown per user)
 const XP_COOLDOWN_MS = 60000;
 
 // Ordering coordination: the top-user notification can arrive before the
 // level-up message is sent, so hold it back while addXp is in flight.
-const pendingXp = new Set();
+const pendingXp = new Map();
 const queuedTopUser = new Map();
 const roleID = process.env.LEADER_ROLE_ID;
+
+function startPendingXp(key) {
+  pendingXp.set(key, (pendingXp.get(key) || 0) + 1);
+}
+
+async function finishPendingXp(key) {
+  const remaining = pendingXp.get(key) - 1;
+  if (remaining > 0) {
+    pendingXp.set(key, remaining);
+    return;
+  }
+
+  pendingXp.delete(key);
+  const queued = queuedTopUser.get(key);
+  if (queued) {
+    queuedTopUser.delete(key);
+    await announceTopUser(queued);
+  }
+}
 
 async function announceTopUser(payload) {
   try {
@@ -107,31 +199,6 @@ async function announceTopUser(payload) {
     console.error('Unable to send top user message', error);
   }
 }
-
-client.on(Events.MessageCreate, async (message) => {
-  if (message.author.bot || !message.guild) return;
-  const key = `${message.guild.id}:${message.author.id}`;
-  try {
-    const amount = Math.floor(Math.random() * 11) + 15;
-    pendingXp.add(key);
-    const result = await db.addXp(message.author.id, message.guild.id, amount, XP_COOLDOWN_MS);
-    if (result && result.leveledUp) {
-      console.log(`${message.author} leveled up to level ${result.level}!`);
-      // await message.channel.send(`${message.author} leveled up to level ${result.level}!`);
-    }
-  }
-  catch (error) {
-    console.error(error);
-  }
-  finally {
-    pendingXp.delete(key);
-    const queued = queuedTopUser.get(key);
-    if (queued) {
-      queuedTopUser.delete(key);
-      await announceTopUser(queued);
-    }
-  }
-});
 
 // When the client is ready, run this code (only once).
 client.once(Events.ClientReady, async (readyClient) => {
