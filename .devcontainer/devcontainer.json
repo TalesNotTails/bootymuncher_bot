@@ -9,10 +9,9 @@
       "installOhMyZsh": true,
       "installOhMyZshConfig": true,
       "configureZshAsDefaultShell": true,
-      "upgradePackages": true,
+      "upgradePackages": true
     }
   },
-  "updateRemoteUserUID": false,
   "postCreateCommand": {
     "npm": "npm install"
   },
