@@ -36,6 +36,12 @@ Shows the top 10 members of the server by XP. The reply is private.
 2. Bob — level 2, 180 XP
 ```
 
+experience
+----------
+Members earn 15-25 XP for sending a message. When a member reacts to another member's guild message, both the message author and reactor earn 5-15 XP. Self-reactions and bot activity do not earn XP.
+
+XP awards have a 60-second cooldown per member per server, regardless of whether the attempted award came from a message or reaction.
+
 configuration
 -------------
 When a member overtakes the top spot, the bot moves the leader role to them and announces it in the server's system channel.
