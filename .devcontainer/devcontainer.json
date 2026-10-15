@@ -9,16 +9,15 @@
       "installOhMyZsh": true,
       "installOhMyZshConfig": true,
       "configureZshAsDefaultShell": true,
-      "upgradePackages": true,
-      "userUid": "3000",
-      "userGid": "3000"
+      "upgradePackages": true
     }
   },
   "postCreateCommand": {
     "npm": "npm install"
   },
   "mounts": [
-    "source=${localEnv:HOME}/.config/opencode,target=/root/.config/opencode,type=bind",
+    "source=opencode-config,target=/root/.config/opencode,type=volume",
     "source=opencode-data,target=/root/.local/share/opencode,type=volume"
-  ]
+  ],
+  "runArgs": ["--security-opt=label=disable"]
 }
