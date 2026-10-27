@@ -116,6 +116,20 @@ function decoderFor(encoding) {
   return create ? create() : null;
 }
 
+function describeNetworkError(error) {
+  if (error instanceof WatchError) return error;
+  if (error.code === 'ABORT_ERR' || error.name === 'TimeoutError' || error.code === 'ETIMEDOUT') {
+    return new WatchError('The store took too long to respond. Some stores deliberately stall automated requests.');
+  }
+  if (error.code === 'ECONNRESET' || error.code === 'ECONNREFUSED') {
+    return new WatchError('The store closed the connection. It may be blocking automated requests.');
+  }
+  if (error.code === 'ENOTFOUND' || error.code === 'EAI_AGAIN') {
+    return new WatchError('I couldn\'t find that website.');
+  }
+  return error;
+}
+
 function requestOnce(url) {
   return new Promise((resolve, reject) => {
     const lib = url.protocol === 'https:' ? https : http;
@@ -143,7 +157,7 @@ function requestOnce(url) {
       let size = 0;
       const fail = (error) => {
         res.destroy();
-        reject(error);
+        reject(describeNetworkError(error));
       };
       res.on('error', fail);
       stream.on('error', fail);
@@ -159,7 +173,7 @@ function requestOnce(url) {
         resolve({ statusCode, body: Buffer.concat(chunks).toString('utf8') });
       });
     });
-    req.on('error', reject);
+    req.on('error', (error) => reject(describeNetworkError(error)));
     req.end();
   });
 }
@@ -242,7 +256,7 @@ function collectAvailability(node, found = []) {
 }
 
 function fromJsonLd($) {
-  const result = { status: null, title: null };
+  const result = { status: null, title: null, raw: [] };
   $('script[type="application/ld+json"]').each((i, el) => {
     if (result.status) return;
     let data;
@@ -256,7 +270,8 @@ function fromJsonLd($) {
     if (!product) return;
     result.title = typeof product.name === 'string' ? product.name : null;
     // For products with variants, any variant being in stock counts.
-    result.status = combine(collectAvailability(product).map(classifyAvailability));
+    result.raw = collectAvailability(product).map(String);
+    result.status = combine(result.raw.map(classifyAvailability));
   });
   return result;
 }
@@ -267,7 +282,8 @@ function fromMeta($) {
     .each((i, el) => values.push($(el).attr('content')));
   $('[itemprop="availability"]')
     .each((i, el) => values.push($(el).attr('href') || $(el).attr('content') || $(el).text()));
-  return combine(values.filter(Boolean).map(classifyAvailability));
+  const raw = values.filter(Boolean);
+  return { status: combine(raw.map(classifyAvailability)), raw };
 }
 
 const ADD_TO_CART = /add\s+to\s+(cart|bag|basket|trolley)|buy\s+(it\s+)?now|add\s+to\s+order/i;
@@ -295,12 +311,38 @@ function fromPageText($) {
 function parseAvailability(html) {
   const $ = cheerio.load(html);
   const jsonLd = fromJsonLd($);
+  const meta = fromMeta($);
+  const buttons = fromPageText($);
   const rawTitle = jsonLd.title
     || $('meta[property="og:title"]').attr('content')
     || $('title').first().text();
   const title = rawTitle ? rawTitle.replace(/\s+/g, ' ').trim().slice(0, 200) : null;
-  const status = jsonLd.status || fromMeta($) || fromPageText($) || 'unknown';
-  return { status, title: title || null };
+
+  let status = 'unknown';
+  let source = null;
+  if (jsonLd.status) {
+    status = jsonLd.status;
+    source = 'json-ld';
+  }
+  else if (meta.status) {
+    status = meta.status;
+    source = 'meta';
+  }
+  else if (buttons) {
+    status = buttons;
+    source = 'buttons';
+  }
+
+  return {
+    status,
+    title: title || null,
+    source,
+    signals: {
+      jsonLd: { status: jsonLd.status, raw: jsonLd.raw },
+      meta: { status: meta.status, raw: meta.raw },
+      buttons: { status: buttons },
+    },
+  };
 }
 
 async function checkUrl(urlString) {

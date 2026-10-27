@@ -51,6 +51,8 @@ module.exports = {
       return interaction.editReply('I couldn\'t load that page. Check the link and try again.');
     }
 
+    console.log(`[watch] ${url} -> ${result.status} (via ${result.source}) ${JSON.stringify(result.signals)}`);
+
     const added = await db.addWatch(interaction.user.id, url, result.title, result.status);
     if (!added) {
       return interaction.editReply('You\'re already watching that page.');
