@@ -4,6 +4,7 @@ const path = require('node:path');
 const { Client, Collection, Events, GatewayIntentBits, MessageFlags, Partials } = require('discord.js');
 const { status } = require('minecraft-server-util');
 const db = require('./db');
+const watcher = require('./watcher');
 
 // Create a new client instance
 const client = new Client({
@@ -88,6 +89,17 @@ client.on('messageReactionAdd', async (reaction, user) => {
 
 // Listen for interactions
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isAutocomplete()) {
+    const autocompleteCommand = interaction.client.commands.get(interaction.commandName);
+    if (!autocompleteCommand || !autocompleteCommand.autocomplete) return;
+    try {
+      await autocompleteCommand.autocomplete(interaction);
+    }
+    catch (error) {
+      console.error(error);
+    }
+    return;
+  }
   if (!interaction.isChatInputCommand()) return;
   // console.log(interaction);
   const command = interaction.client.commands.get(interaction.commandName);
@@ -212,6 +224,7 @@ client.once(Events.ClientReady, async (readyClient) => {
       announceTopUser(payload);
     }
   });
+  watcher.start(readyClient);
 });
 
 // Log in to Discord with your client's token

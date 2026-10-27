@@ -12,12 +12,13 @@
       "upgradePackages": true
     }
   },
+  "remoteUser": "node",
   "postCreateCommand": {
     "npm": "npm install"
   },
   "mounts": [
-    "source=opencode-config,target=/root/.config/opencode,type=volume",
-    "source=opencode-data,target=/root/.local/share/opencode,type=volume"
+    "source=opencode-config,target=/home/node/.config/opencode,type=volume",
+    "source=opencode-data,target=/home/node/.local/share/opencode,type=volume"
   ],
   "runArgs": ["--security-opt=label=disable"]
 }
