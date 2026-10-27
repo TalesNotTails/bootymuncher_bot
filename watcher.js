@@ -289,23 +289,35 @@ function fromMeta($) {
 const ADD_TO_CART = /add\s+to\s+(cart|bag|basket|trolley)|buy\s+(it\s+)?now|add\s+to\s+order/i;
 const SOLD_OUT = /sold\s*out|out\s+of\s+stock|currently\s+unavailable|temporarily\s+unavailable|notify\s+me|email\s+me\s+when|back\s+in\s+stock/i;
 
+// Last-resort heuristic, deliberately conservative: pages built with
+// JavaScript often render a disabled add-to-cart button before they load, and
+// product pages often show add-to-cart buttons for other items (carousels).
+// So we only answer when the buttons are unambiguous, and otherwise say nothing.
 function fromPageText($) {
   const buttons = $('button, input[type="submit"], input[type="button"], [role="button"]').toArray()
     .map((el) => ({
-      text: `${$(el).text()} ${$(el).attr('value') || ''}`.trim(),
+      text: `${$(el).text()} ${$(el).attr('value') || ''}`.replace(/\s+/g, ' ').trim(),
       disabled: $(el).is('[disabled], [aria-disabled="true"]'),
     }))
     .filter((button) => button.text);
 
-  const purchasable = buttons.some((button) => ADD_TO_CART.test(button.text)
-    && !button.disabled && !SOLD_OUT.test(button.text));
-  if (purchasable) return 'in_stock';
+  const soldOut = buttons.filter((button) => SOLD_OUT.test(button.text));
+  const addToCart = buttons.filter((button) => ADD_TO_CART.test(button.text) && !SOLD_OUT.test(button.text));
+  const enabledAddToCart = addToCart.filter((button) => !button.disabled);
 
-  const blocked = buttons.some((button) => SOLD_OUT.test(button.text)
-    || (ADD_TO_CART.test(button.text) && button.disabled));
-  if (blocked) return 'out_of_stock';
-
-  return null;
+  let status = null;
+  if (enabledAddToCart.length === 1 && soldOut.length === 0) {
+    status = 'in_stock';
+  }
+  else if (soldOut.length > 0 && addToCart.length === 0) {
+    status = 'out_of_stock';
+  }
+  return {
+    status,
+    addToCart: addToCart.length,
+    enabledAddToCart: enabledAddToCart.length,
+    soldOut: soldOut.slice(0, 3).map((button) => button.text.slice(0, 60)),
+  };
 }
 
 function parseAvailability(html) {
@@ -328,8 +340,8 @@ function parseAvailability(html) {
     status = meta.status;
     source = 'meta';
   }
-  else if (buttons) {
-    status = buttons;
+  else if (buttons.status) {
+    status = buttons.status;
     source = 'buttons';
   }
 
@@ -340,7 +352,7 @@ function parseAvailability(html) {
     signals: {
       jsonLd: { status: jsonLd.status, raw: jsonLd.raw },
       meta: { status: meta.status, raw: meta.raw },
-      buttons: { status: buttons },
+      buttons,
     },
   };
 }
