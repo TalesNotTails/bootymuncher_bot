@@ -44,7 +44,6 @@ const blockedAddresses = new net.BlockList();
 [
   ['::', 128],
   ['::1', 128],
-  ['::ffff:0:0', 96],
   ['64:ff9b::', 96],
   ['fc00::', 7],
   ['fe80::', 10],
