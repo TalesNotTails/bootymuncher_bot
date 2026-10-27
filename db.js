@@ -67,6 +67,19 @@ async function init() {
     AFTER UPDATE OF level ON user_levels
     FOR EACH ROW
     EXECUTE FUNCTION notify_new_top_user();
+
+    CREATE TABLE IF NOT EXISTS watched_items (
+      id SERIAL PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      url TEXT NOT NULL,
+      title TEXT,
+      last_status TEXT NOT NULL DEFAULT 'unknown',
+      last_checked_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (user_id, url)
+    );
+
+    CREATE INDEX IF NOT EXISTS watched_items_url_idx ON watched_items (url);
   `);
 }
 
@@ -142,6 +155,87 @@ async function getLastXpAt(userId, guildId) {
   return result.rows[0] ? result.rows[0].last_xp_at : null;
 }
 
+// Returns the new row, or null if the user is already watching this URL.
+async function addWatch(userId, url, title, status) {
+  const result = await pool.query(
+    `INSERT INTO watched_items (user_id, url, title, last_status, last_checked_at)
+     VALUES ($1, $2, $3, $4, NOW())
+     ON CONFLICT (user_id, url) DO NOTHING
+     RETURNING id, url, title`,
+    [userId, url, title, status],
+  );
+  return result.rows[0] || null;
+}
+
+async function countWatches(userId) {
+  const result = await pool.query(
+    'SELECT COUNT(*)::int AS count FROM watched_items WHERE user_id = $1',
+    [userId],
+  );
+  return result.rows[0].count;
+}
+
+// `identifier` is either a numeric watch id or a URL. Scoped to the user so
+// nobody can remove someone else's watch. Returns the removed row or null.
+async function removeWatch(userId, identifier) {
+  const byId = /^\d{1,9}$/.test(identifier);
+  const result = await pool.query(
+    `DELETE FROM watched_items
+     WHERE user_id = $1 AND ${byId ? 'id = $2::int' : 'url = $2'}
+     RETURNING url, title`,
+    [userId, identifier],
+  );
+  return result.rows[0] || null;
+}
+
+async function getUserWatches(userId) {
+  const result = await pool.query(
+    'SELECT id, url, title FROM watched_items WHERE user_id = $1 ORDER BY created_at',
+    [userId],
+  );
+  return result.rows;
+}
+
+async function getWatchedUrls() {
+  const result = await pool.query('SELECT DISTINCT url FROM watched_items');
+  return result.rows.map((row) => row.url);
+}
+
+// Records the outcome of checking a URL and returns the ids of users who
+// should be pinged: those whose last known status was not already in stock.
+// An 'unknown' result (e.g. a page we couldn't parse) never overwrites the
+// last known status, so a flaky page can't cause repeat pings.
+async function recordWatchCheck(url, status, title) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      'SELECT user_id, last_status FROM watched_items WHERE url = $1 FOR UPDATE',
+      [url],
+    );
+    await client.query(
+      `UPDATE watched_items
+       SET last_checked_at = NOW(),
+           title = COALESCE($2, title),
+           last_status = CASE WHEN $3::text = 'unknown' THEN last_status ELSE $3::text END
+       WHERE url = $1`,
+      [url, title, status],
+    );
+    await client.query('COMMIT');
+    if (status !== 'in_stock') return [];
+    return rows.filter((row) => row.last_status !== 'in_stock').map((row) => row.user_id);
+  }
+  catch (error) {
+    await client.query('ROLLBACK').catch((rollbackError) => {
+      console.error('Rollback failed:', rollbackError);
+    });
+    throw error;
+  }
+  finally {
+    client.release();
+  }
+}
+
 // Dedicated connection (not from the pool) that LISTENs for top-user changes.
 function listenForTopUser(onTopUser) {
   const client = new Client(pool.options);
@@ -178,4 +272,19 @@ function listenForTopUser(onTopUser) {
     });
 }
 
-module.exports = { pool, init, listenForTopUser, addXp, getUser, getLeaderboard, getLastXpAt, xpForLevel };
+module.exports = {
+  pool,
+  init,
+  listenForTopUser,
+  addXp,
+  getUser,
+  getLeaderboard,
+  getLastXpAt,
+  xpForLevel,
+  addWatch,
+  countWatches,
+  removeWatch,
+  getUserWatches,
+  getWatchedUrls,
+  recordWatchCheck,
+};

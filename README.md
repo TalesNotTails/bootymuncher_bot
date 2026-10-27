@@ -36,6 +36,16 @@ Shows the top 10 members of the server by XP. The reply is private.
 2. Bob — level 2, 180 XP
 ```
 
+### /watch `url`
+Watches a store page and pings you in the alerts channel when the item is available.
+- `url` (required): link to the product page (`http` or `https`)
+- The page is checked right away, and the reply says whether the item is currently in stock. You can watch up to 10 pages.
+- You get pinged when the item changes from not-in-stock to in stock, not on every check.
+- Stock status is read from the page's schema.org product data, availability meta tags, or add-to-cart / sold-out buttons. Pages that render stock info only with JavaScript, or stores that block bots, may not work.
+
+### /unwatch `url`
+Stops watching a page. Pick one of your watched pages from the autocomplete list, or paste its URL.
+
 experience
 ----------
 Members earn 15-25 XP for sending a message. When a member reacts to another member's guild message, both the message author and reactor earn 5-15 XP. Self-reactions and bot activity do not earn XP.
@@ -48,6 +58,10 @@ When a member overtakes the top spot, the bot moves the leader role to them and 
 - `LEADER_ROLE_ID`: ID of the role given to the current top user. If unset, only the announcement is sent.
 - The bot needs the **Manage Roles** permission, with its highest role above the leader role.
 - The **Server Members Intent** must be enabled in the Discord developer portal.
+
+For `/watch`:
+- `WATCH_CHANNEL_ID`: ID of the text channel where availability pings are posted. If unset, `/watch` is disabled. The bot needs permission to view and send messages in it.
+- `WATCH_INTERVAL_MINUTES`: how often watched pages are re-checked (default `10`, minimum `1`).
 
 [![Auto Tagging](https://github.com/TalesNotTails/bootymuncher_bot/actions/workflows/auto-tag-on-merge.yml/badge.svg)](https://github.com/TalesNotTails/bootymuncher_bot/actions/workflows/auto-tag-on-merge.yml)
 [![JS Lint](https://github.com/TalesNotTails/bootymuncher_bot/actions/workflows/lint.yml/badge.svg)](https://github.com/TalesNotTails/bootymuncher_bot/actions/workflows/lint.yml)
